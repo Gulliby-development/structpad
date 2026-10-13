@@ -12,9 +12,10 @@ from structpad.render import render_check, render_layout, render_suggest
 _USAGE = (
     "usage: structpad layout [--abi lp64|ilp32] FILE\n"
     "       structpad suggest [--abi lp64|ilp32] FILE\n"
-    "       structpad check [--abi lp64|ilp32] [--max-padding N] FILE\n"
+    "       structpad check [--abi lp64|ilp32] [--max-padding N] [--ignore NAME]... FILE\n"
 )
 _MAX_PADDING_RE = re.compile(r"[0-9]{1,6}\Z")
+_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}\Z")
 
 
 def _escape_controls(value: str) -> str:
@@ -28,9 +29,10 @@ def _write_error(stderr: BinaryIO, message: str) -> None:
 
 def _parse_options(
     command: str, arguments: list[str]
-) -> tuple[str, int, str] | str:
+) -> tuple[str, int, str, tuple[str, ...]] | str:
     abi = "lp64"
     max_padding = 0
+    ignored: list[str] = []
     file_name: str | None = None
     index = 0
 
@@ -70,6 +72,22 @@ def _parse_options(
             max_padding = int(value)
             continue
 
+        if argument == "--ignore" or argument.startswith("--ignore="):
+            if command != "check":
+                return f"{command} does not take --ignore"
+            if argument == "--ignore":
+                if index + 1 >= len(arguments):
+                    return "--ignore needs a value"
+                value = arguments[index + 1]
+                index += 2
+            else:
+                value = argument[len("--ignore=") :]
+                index += 1
+            if _NAME_RE.fullmatch(value) is None:
+                return f'invalid --ignore "{_escape_controls(value)}"'
+            ignored.append(value)
+            continue
+
         if argument.startswith("-") and argument != "-":
             return f'unknown option "{_escape_controls(argument)}"'
         if file_name is not None:
@@ -79,7 +97,7 @@ def _parse_options(
 
     if file_name is None:
         return "missing FILE"
-    return abi, max_padding, file_name
+    return abi, max_padding, file_name, tuple(ignored)
 
 
 def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) -> int:
@@ -100,7 +118,7 @@ def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) ->
     if isinstance(parsed_options, str):
         _write_error(stderr, parsed_options)
         return 2
-    abi, max_padding, file_name = parsed_options
+    abi, max_padding, file_name, ignored_names = parsed_options
     display = "<stdin>" if file_name == "-" else file_name.replace("\\", "/")
 
     try:
@@ -125,6 +143,14 @@ def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) ->
         _write_error(stderr, error.message)
         return 2
 
+    definitions = {struct.name: struct for struct in structs}
+    for name in ignored_names:
+        if name not in definitions:
+            _write_error(stderr, f'unknown struct "{name}" in --ignore')
+            return 2
+
+    ignored = frozenset(ignored_names)
+
     if command == "layout":
         stdout.write(render_layout(structs, abi))
         return 0
@@ -132,11 +158,11 @@ def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) ->
         stdout.write(render_suggest(structs, abi))
         return 0
 
-    output = render_check(structs, abi, max_padding)
+    output = render_check(structs, abi, max_padding, ignored)
     stdout.write(output)
-    definitions = {struct.name: struct for struct in structs}
     if any(
-        calculate_layout(struct, abi, definitions).padding > max_padding
+        struct.name not in ignored
+        and calculate_layout(struct, abi, definitions).padding > max_padding
         for struct in structs
     ):
         return 1

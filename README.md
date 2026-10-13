@@ -110,7 +110,22 @@ Frame: 12 bytes of padding (limit 8)
 1 of 3 structs over the padding limit
 ```
 
-The check exits with status 1 when any struct exceeds the limit. Select the ABI with `--abi lp64` (the default) or `--abi ilp32`; for example:
+The check exits with status 1 when any struct exceeds the limit.
+
+`--ignore NAME` is available only with `check` and may be repeated; `--ignore=NAME` is also supported. Ignored structs are omitted from the padding check but remain included in the summary's total. The summary ends with the number of distinct ignored names, so duplicates do not increase that count.
+
+```sh
+structpad check --ignore Packet net.sp
+```
+
+```text
+Frame: 12 bytes of padding (limit 0)
+1 of 3 structs over the padding limit (1 ignored)
+```
+
+Ignoring both `Packet` and `Frame` prints `ok, 3 structs (2 ignored)` and exits with status 0. Invalid names such as `1x` produce `invalid --ignore "1x"`; a name not defined in the file produces `unknown struct "Nope" in --ignore`. Both errors exit with status 2.
+
+Select the ABI with `--abi lp64` (the default) or `--abi ilp32`; for example:
 
 ```sh
 structpad layout --abi ilp32 net.sp
