@@ -81,21 +81,33 @@ def render_suggest(structs: Sequence[Struct], abi: str) -> bytes:
     return ("\n\n".join(blocks) + "\n").encode("utf-8")
 
 
-def render_check(structs: Sequence[Struct], abi: str, max_padding: int) -> bytes:
+def render_check(
+    structs: Sequence[Struct],
+    abi: str,
+    max_padding: int,
+    ignored: frozenset[str] = frozenset(),
+) -> bytes:
     """Render padding-limit results as UTF-8 bytes with LF line endings."""
     definitions = _definitions(structs)
     over_limit: list[tuple[Struct, int]] = []
     for struct in structs:
+        if struct.name in ignored:
+            continue
         padding = calculate_layout(struct, abi, definitions).padding
         if padding > max_padding:
             over_limit.append((struct, padding))
 
+    ignored_suffix = f" ({len(ignored)} ignored)" if ignored else ""
+
     if not over_limit:
-        return f"ok, {len(structs)} structs\n".encode()
+        return f"ok, {len(structs)} structs{ignored_suffix}\n".encode()
 
     lines = []
     for struct, padding in over_limit:
         byte_word = "byte" if padding == 1 else "bytes"
         lines.append(f"{struct.name}: {padding} {byte_word} of padding (limit {max_padding})")
-    lines.append(f"{len(over_limit)} of {len(structs)} structs over the padding limit")
+    lines.append(
+        f"{len(over_limit)} of {len(structs)} structs over the padding limit"
+        f"{ignored_suffix}"
+    )
     return ("\n".join(lines) + "\n").encode("utf-8")

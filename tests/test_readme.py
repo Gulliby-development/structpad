@@ -42,6 +42,20 @@ def test_readme_has_required_sections_and_commands() -> None:
         assert command in readme
 
 
+def test_readme_documents_ignore_option() -> None:
+    readme = _readme()
+
+    for required_text in (
+        "--ignore NAME",
+        "structpad check --ignore Packet net.sp",
+        "1 of 3 structs over the padding limit (1 ignored)",
+        "ok, 3 structs (2 ignored)",
+        'invalid --ignore "1x"',
+        'unknown struct "Nope" in --ignore',
+    ):
+        assert required_text in readme
+
+
 def test_readme_has_worked_input_and_exact_layout_output_as_fenced_blocks() -> None:
     blocks = _fenced_blocks(_readme())
 
