@@ -125,6 +125,30 @@ Frame: 12 bytes of padding (limit 0)
 
 Ignoring both `Packet` and `Frame` prints `ok, 3 structs (2 ignored)` and exits with status 0. Invalid names such as `1x` produce `invalid --ignore "1x"`; a name not defined in the file produces `unknown struct "Nope" in --ignore`. Both errors exit with status 2.
 
+`--struct NAME` is available only with `layout` and may be repeated; `--struct=NAME` is also supported. Only the named structs are printed, once each and in file order, with the same numbers as in the full listing, because nested structs are still resolved from the whole file.
+
+```sh
+structpad layout --struct Frame --struct Wire net.sp
+```
+
+```text
+struct Wire: size 5, align 1, padding 0, packed
+offset   size  field
+     0      1  kind: u8
+     1      4  value: u32
+
+struct Frame: size 56, align 8, padding 12
+offset   size  field
+     0      1  version: u8
+     1      7  (padding)
+     8     32  head: struct Packet
+    40     10  tail: struct Wire[2]
+    50      1  ok: bool
+    51      5  (padding)
+```
+
+An invalid name such as `1x` produces `invalid --struct "1x"`, a name not defined in the file produces `unknown struct "Nope" in --struct`, and `--struct` with `suggest` or `check` produces `suggest does not take --struct` or `check does not take --struct`. All of these exit with status 2.
+
 Select the ABI with `--abi lp64` (the default) or `--abi ilp32`; for example:
 
 ```sh
