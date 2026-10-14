@@ -45,13 +45,18 @@ def _layout_block(layout: StructLayout) -> str:
     return "\n".join(lines)
 
 
-def render_layout(structs: Sequence[Struct], abi: str) -> bytes:
-    """Render every struct's layout as UTF-8 bytes with LF line endings."""
+def render_layout(
+    structs: Sequence[Struct], abi: str, selected_names: Sequence[str] | None = None
+) -> bytes:
+    """Render layouts as UTF-8 bytes with LF line endings."""
     definitions = _definitions(structs)
+    selected = None if selected_names is None else frozenset(selected_names)
     blocks = [
-        _layout_block(calculate_layout(struct, abi, definitions)) for struct in structs
+        _layout_block(calculate_layout(struct, abi, definitions))
+        for struct in structs
+        if selected is None or struct.name in selected
     ]
-    return ("\n\n".join(blocks) + "\n").encode("utf-8")
+    return (("\n\n".join(blocks) + "\n") if blocks else "").encode("utf-8")
 
 
 def render_suggest(structs: Sequence[Struct], abi: str) -> bytes:
