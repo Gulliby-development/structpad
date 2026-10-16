@@ -1,5 +1,6 @@
 """Byte-oriented text renderers for structpad commands."""
 
+import json
 from collections.abc import Mapping, Sequence
 
 from structpad.layout import StructLayout, calculate_layout
@@ -57,6 +58,52 @@ def render_layout(
         if selected is None or struct.name in selected
     ]
     return (("\n\n".join(blocks) + "\n") if blocks else "").encode("utf-8")
+
+
+def render_layout_json(
+    structs: Sequence[Struct], abi: str, selected_names: Sequence[str] | None = None
+) -> bytes:
+    """Render layouts as a deterministic JSON array of UTF-8 bytes."""
+    definitions = _definitions(structs)
+    selected = None if selected_names is None else frozenset(selected_names)
+    layouts: list[dict[str, object]] = []
+
+    for struct in structs:
+        if selected is not None and struct.name not in selected:
+            continue
+
+        layout = calculate_layout(struct, abi, definitions)
+        fields = [
+            {
+                "name": field_layout.field.name,
+                "type": _field_type(field_layout.field),
+                "offset": field_layout.offset,
+                "size": field_layout.size,
+            }
+            for field_layout in layout.field_layouts
+        ]
+        gaps: list[dict[str, int]] = []
+        offset = 0
+        for field_layout in layout.field_layouts:
+            if field_layout.offset > offset:
+                gaps.append({"offset": offset, "size": field_layout.offset - offset})
+            offset = field_layout.offset + field_layout.size
+        if offset < layout.size:
+            gaps.append({"offset": offset, "size": layout.size - offset})
+
+        layouts.append(
+            {
+                "name": struct.name,
+                "size": layout.size,
+                "align": layout.alignment,
+                "padding": layout.padding,
+                "packed": struct.packed,
+                "fields": fields,
+                "gaps": gaps,
+            }
+        )
+
+    return (json.dumps(layouts, indent=2) + "\n").encode("utf-8")
 
 
 def render_suggest(structs: Sequence[Struct], abi: str) -> bytes:

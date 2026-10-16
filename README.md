@@ -149,6 +149,46 @@ offset   size  field
 
 An invalid name such as `1x` produces `invalid --struct "1x"`, a name not defined in the file produces `unknown struct "Nope" in --struct`, and `--struct` with `suggest` or `check` produces `suggest does not take --struct` or `check does not take --struct`. All of these exit with status 2.
 
+`--format json` is available only with `layout`; `--format=json` is also supported and `--format text` is the default. It prints the same structs as the text listing (also with `--struct`) as one JSON array, indented by two spaces, with the keys in the order shown below. `fields` lists the fields with the offset and size of each one and `gaps` lists every run of padding bytes, including the tail, so the sizes in `gaps` add up to `padding`. For `struct Pair { u8 a; u32 b; }`:
+
+```sh
+structpad layout --format json pair.sp
+```
+
+```text
+[
+  {
+    "name": "Pair",
+    "size": 8,
+    "align": 4,
+    "padding": 3,
+    "packed": false,
+    "fields": [
+      {
+        "name": "a",
+        "type": "u8",
+        "offset": 0,
+        "size": 1
+      },
+      {
+        "name": "b",
+        "type": "u32",
+        "offset": 4,
+        "size": 4
+      }
+    ],
+    "gaps": [
+      {
+        "offset": 1,
+        "size": 3
+      }
+    ]
+  }
+]
+```
+
+An invalid value such as `xml` produces `invalid --format "xml" (use text or json)`, and `--format` with `suggest` or `check` produces `suggest does not take --format` or `check does not take --format`. Both exit with status 2.
+
 Select the ABI with `--abi lp64` (the default) or `--abi ilp32`; for example:
 
 ```sh
