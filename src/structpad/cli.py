@@ -7,10 +7,10 @@ from typing import BinaryIO
 from structpad.layout import calculate_layout
 from structpad.model import InputError
 from structpad.parser import parse
-from structpad.render import render_check, render_layout, render_suggest
+from structpad.render import render_check, render_layout, render_layout_json, render_suggest
 
 _USAGE = (
-    "usage: structpad layout [--abi lp64|ilp32] [--struct NAME]... FILE\n"
+    "usage: structpad layout [--abi lp64|ilp32] [--struct NAME]... [--format text|json] FILE\n"
     "       structpad suggest [--abi lp64|ilp32] FILE\n"
     "       structpad check [--abi lp64|ilp32] [--max-padding N] [--ignore NAME]... FILE\n"
 )
@@ -29,8 +29,9 @@ def _write_error(stderr: BinaryIO, message: str) -> None:
 
 def _parse_options(
     command: str, arguments: list[str]
-) -> tuple[str, int, str, tuple[str, ...], tuple[str, ...]] | str:
+) -> tuple[str, int, str, tuple[str, ...], tuple[str, ...], str] | str:
     abi = "lp64"
+    output_format = "text"
     max_padding = 0
     ignored: list[str] = []
     selected: list[str] = []
@@ -55,6 +56,22 @@ def _parse_options(
                 return f'invalid --abi "{_escape_controls(value)}" (use lp64 or ilp32)'
             abi = value
             index += 1
+            continue
+
+        if argument == "--format" or argument.startswith("--format="):
+            if command != "layout":
+                return f"{command} does not take --format"
+            if argument == "--format":
+                if index + 1 >= len(arguments):
+                    return "--format needs a value"
+                value = arguments[index + 1]
+                index += 2
+            else:
+                value = argument[len("--format=") :]
+                index += 1
+            if value not in {"text", "json"}:
+                return f'invalid --format "{_escape_controls(value)}" (use text or json)'
+            output_format = value
             continue
 
         if argument == "--max-padding" or argument.startswith("--max-padding="):
@@ -114,7 +131,7 @@ def _parse_options(
 
     if file_name is None:
         return "missing FILE"
-    return abi, max_padding, file_name, tuple(ignored), tuple(selected)
+    return abi, max_padding, file_name, tuple(ignored), tuple(selected), output_format
 
 
 def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) -> int:
@@ -135,7 +152,7 @@ def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) ->
     if isinstance(parsed_options, str):
         _write_error(stderr, parsed_options)
         return 2
-    abi, max_padding, file_name, ignored_names, selected_names = parsed_options
+    abi, max_padding, file_name, ignored_names, selected_names, output_format = parsed_options
     display = "<stdin>" if file_name == "-" else file_name.replace("\\", "/")
 
     try:
@@ -174,7 +191,8 @@ def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) ->
     ignored = frozenset(ignored_names)
 
     if command == "layout":
-        stdout.write(render_layout(structs, abi, selected_names or None))
+        renderer = render_layout_json if output_format == "json" else render_layout
+        stdout.write(renderer(structs, abi, selected_names or None))
         return 0
     if command == "suggest":
         stdout.write(render_suggest(structs, abi))
