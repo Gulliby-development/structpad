@@ -213,6 +213,19 @@ Names begin with an ASCII letter or underscore. Array lengths are decimal values
 
 The `lp64` ABI uses 8-byte pointers; `ilp32` uses 4-byte pointers. Both ABIs align 64-bit integers and floats to 8 bytes under `lp64`; under `ilp32` they keep their 8-byte size but use 4-byte alignment. Each field starts at an offset aligned to its type, and the final struct size is rounded up to the struct alignment. Padding is the space between fields and at the end.
 
+The pointer-width integers `usize` and `isize` have the size and alignment of `ptr`: 8 and 8 under `lp64`, 4 and 4 under `ilp32`. They are the types to use for lengths and offsets that follow the platform, such as `size_t` in C or `usize` in Rust. For `struct Buf { u8 tag; usize len; isize off; u16 flags; }`, `structpad layout --abi ilp32` prints:
+
+```text
+struct Buf: size 16, align 4, padding 5
+offset   size  field
+     0      1  tag: u8
+     1      3  (padding)
+     4      4  len: usize
+     8      4  off: isize
+    12      2  flags: u16
+    14      2  (padding)
+```
+
 ## Exit codes
 
 - `0`: command succeeded, or `check` found no struct over the padding limit.
