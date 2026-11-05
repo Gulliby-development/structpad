@@ -11,10 +11,11 @@ from structpad.render import render_check, render_layout, render_layout_json, re
 
 _USAGE = (
     "usage: structpad layout [--abi lp64|ilp32] [--struct NAME]... [--format text|json] FILE\n"
-    "       structpad suggest [--abi lp64|ilp32] FILE\n"
+    "       structpad suggest [--abi lp64|ilp32] [--min-saving N] FILE\n"
     "       structpad check [--abi lp64|ilp32] [--max-padding N] [--ignore NAME]... FILE\n"
 )
 _MAX_PADDING_RE = re.compile(r"[0-9]{1,6}\Z")
+_MIN_SAVING_RE = re.compile(r"[0-9]{1,6}\Z")
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}\Z")
 
 
@@ -29,10 +30,11 @@ def _write_error(stderr: BinaryIO, message: str) -> None:
 
 def _parse_options(
     command: str, arguments: list[str]
-) -> tuple[str, int, str, tuple[str, ...], tuple[str, ...], str] | str:
+) -> tuple[str, int, str, tuple[str, ...], tuple[str, ...], str, int] | str:
     abi = "lp64"
     output_format = "text"
     max_padding = 0
+    min_saving = 0
     ignored: list[str] = []
     selected: list[str] = []
     file_name: str | None = None
@@ -90,6 +92,22 @@ def _parse_options(
             max_padding = int(value)
             continue
 
+        if argument == "--min-saving" or argument.startswith("--min-saving="):
+            if command != "suggest":
+                return f"{command} does not take --min-saving"
+            if argument == "--min-saving":
+                if index + 1 >= len(arguments):
+                    return "--min-saving needs a value"
+                value = arguments[index + 1]
+                index += 2
+            else:
+                value = argument[len("--min-saving=") :]
+                index += 1
+            if _MIN_SAVING_RE.fullmatch(value) is None:
+                return f'invalid --min-saving "{_escape_controls(value)}"'
+            min_saving = int(value)
+            continue
+
         if argument == "--ignore" or argument.startswith("--ignore="):
             if command != "check":
                 return f"{command} does not take --ignore"
@@ -131,7 +149,7 @@ def _parse_options(
 
     if file_name is None:
         return "missing FILE"
-    return abi, max_padding, file_name, tuple(ignored), tuple(selected), output_format
+    return abi, max_padding, file_name, tuple(ignored), tuple(selected), output_format, min_saving
 
 
 def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) -> int:
@@ -152,7 +170,9 @@ def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) ->
     if isinstance(parsed_options, str):
         _write_error(stderr, parsed_options)
         return 2
-    abi, max_padding, file_name, ignored_names, selected_names, output_format = parsed_options
+    abi, max_padding, file_name, ignored_names, selected_names, output_format, min_saving = (
+        parsed_options
+    )
     display = "<stdin>" if file_name == "-" else file_name.replace("\\", "/")
 
     try:
@@ -195,7 +215,7 @@ def run(args: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: BinaryIO) ->
         stdout.write(renderer(structs, abi, selected_names or None))
         return 0
     if command == "suggest":
-        stdout.write(render_suggest(structs, abi))
+        stdout.write(render_suggest(structs, abi, min_saving))
         return 0
 
     output = render_check(structs, abi, max_padding, ignored)

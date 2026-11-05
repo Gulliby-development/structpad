@@ -17,7 +17,7 @@ run = importlib.import_module("structpad.cli").run
 
 _USAGE = (
     b"usage: structpad layout [--abi lp64|ilp32] [--struct NAME]... [--format text|json] FILE\n"
-    b"       structpad suggest [--abi lp64|ilp32] FILE\n"
+    b"       structpad suggest [--abi lp64|ilp32] [--min-saving N] FILE\n"
     b"       structpad check [--abi lp64|ilp32] [--max-padding N] [--ignore NAME]... FILE\n"
 )
 _MIXED = (

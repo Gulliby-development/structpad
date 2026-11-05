@@ -106,30 +106,40 @@ def render_layout_json(
     return (json.dumps(layouts, indent=2) + "\n").encode("utf-8")
 
 
-def render_suggest(structs: Sequence[Struct], abi: str) -> bytes:
-    """Render stable field-order suggestions as UTF-8 bytes with LF endings."""
+def render_suggest(structs: Sequence[Struct], abi: str, min_saving: int = 0) -> bytes:
+    """Render stable field-order suggestions as UTF-8 bytes with LF endings.
+
+    A struct that would save fewer than ``min_saving`` bytes is left out.
+    """
     definitions = _definitions(structs)
     blocks: list[str] = []
     for struct in structs:
         current = calculate_layout(struct, abi, definitions)
         if struct.packed:
-            blocks.append(
-                f"struct {struct.name}: packed, size {current.size}, nothing to reorder"
-            )
+            if min_saving == 0:
+                blocks.append(
+                    f"struct {struct.name}: packed, size {current.size}, nothing to reorder"
+                )
             continue
 
         proposed = suggest(struct, abi, definitions)
         if proposed.fields == struct.fields:
-            blocks.append(f"struct {struct.name}: size {current.size}, already compact")
+            if min_saving == 0:
+                blocks.append(f"struct {struct.name}: size {current.size}, already compact")
             continue
 
         improved = calculate_layout(proposed, abi, definitions)
         saving = current.size - improved.size
+        if saving < min_saving:
+            continue
         lines = [
             f"struct {struct.name}: size {current.size} -> {improved.size} (saves {saving})"
         ]
         lines.extend(f"  {_field_declaration(field)}" for field in proposed.fields)
         blocks.append("\n".join(lines))
+    if not blocks:
+        unit = "byte" if min_saving == 1 else "bytes"
+        return f"no struct saves at least {min_saving} {unit}\n".encode()
     return ("\n\n".join(blocks) + "\n").encode("utf-8")
 
 

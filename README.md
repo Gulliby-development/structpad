@@ -99,6 +99,22 @@ struct Frame: size 56 -> 48 (saves 8)
   bool ok;
 ```
 
+`--min-saving N` is available only with `suggest`; `--min-saving=N` is also supported and the default is 0. N is a whole number written with 1 to 6 decimal digits. A struct that would save fewer than N bytes is left out, so a packed struct and a struct that is already compact appear only when N is 0. When every struct is left out, the output is the one line `no struct saves at least N bytes` (`byte` when N is 1).
+
+```sh
+structpad suggest --min-saving 8 net.sp
+```
+
+```text
+struct Frame: size 56 -> 48 (saves 8)
+  struct Packet head;
+  u8 version;
+  struct Wire tail[2];
+  bool ok;
+```
+
+An invalid value such as `-1` produces `invalid --min-saving "-1"`, and `--min-saving` with `layout` or `check` produces `layout does not take --min-saving` or `check does not take --min-saving`. Both exit with status 2.
+
 Check structs against a padding limit; the default limit is zero bytes:
 
 ```sh
