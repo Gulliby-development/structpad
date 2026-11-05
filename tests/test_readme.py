@@ -56,6 +56,20 @@ def test_readme_documents_ignore_option() -> None:
         assert required_text in readme
 
 
+def test_readme_documents_min_saving_option() -> None:
+    readme = _readme()
+
+    for required_text in (
+        "`--min-saving N` is available only with `suggest`",
+        "structpad suggest --min-saving 8 net.sp",
+        "no struct saves at least N bytes",
+        'invalid --min-saving "-1"',
+        "layout does not take --min-saving",
+        "check does not take --min-saving",
+    ):
+        assert required_text in readme
+
+
 def test_readme_has_worked_input_and_exact_layout_output_as_fenced_blocks() -> None:
     blocks = _fenced_blocks(_readme())
 
